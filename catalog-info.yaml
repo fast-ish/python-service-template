@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Template
+metadata:
+  name: python-service-template
+  title: Python Service (Golden Path)
+  description: Production-ready FastAPI service with Grafana observability and enterprise patterns
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+  tags:
+    - python
+    - fastapi
+    - backend
+    - golden-path
+spec:
+  type: service
+  lifecycle: production
+  owner: platform

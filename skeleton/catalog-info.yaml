@@ -1,0 +1,39 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{values.name}}
+  description: ${{values.description}}
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    github.com/project-slug: ${{values.owner}}/${{values.name}}
+    grafana.com/dashboard-url: https://grafana.yourcompany.com/d/service
+  tags:
+    - python
+    - fastapi
+    - backend
+  links:
+    - url: https://${{values.name}}.yourcompany.com
+      title: Production
+      icon: dashboard
+spec:
+  type: service
+  lifecycle: production
+  owner: ${{values.owner}}
+  {%- if values.database != "none" %}
+  dependsOn:
+    - resource:default/aurora-cluster
+  {%- endif %}
+  providesApis:
+    - ${{values.name}}-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{values.name}}-api
+  description: ${{values.name}} REST API
+spec:
+  type: openapi
+  lifecycle: production
+  owner: ${{values.owner}}
+  definition:
+    $text: ./openapi.yaml

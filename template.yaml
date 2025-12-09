@@ -1,0 +1,237 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: python-service-template
+  title: Python Service (Golden Path)
+  description: Production-ready FastAPI service with Grafana observability and enterprise patterns
+  tags:
+    - python
+    - fastapi
+    - api
+    - backend
+    - golden-path
+spec:
+  owner: platform
+  type: service
+
+  parameters:
+    - title: Component Info
+      required:
+        - name
+        - owner
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Unique name of the component
+          pattern: '^[a-z][a-z0-9-]*$'
+          ui:autofocus: true
+        owner:
+          title: Owner Team
+          type: string
+          description: Team that owns this component
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+        description:
+          title: Description
+          type: string
+          description: Description of this component
+
+    - title: Runtime
+      properties:
+        pythonVersion:
+          title: Python Version
+          type: string
+          enum:
+            - "3.13"
+            - "3.12"
+            - "3.11"
+          enumNames:
+            - "3.13 (Latest)"
+            - "3.12 (Recommended)"
+            - "3.11 (LTS)"
+          default: "3.12"
+        packageManager:
+          title: Package Manager
+          type: string
+          enum:
+            - uv
+            - poetry
+            - pip
+          enumNames:
+            - "uv (Recommended)"
+            - "Poetry"
+            - "pip"
+          default: uv
+          description: Python package manager
+
+    - title: Data Layer
+      properties:
+        database:
+          title: Database
+          type: string
+          enum:
+            - aurora-postgresql
+            - aurora-mysql
+            - dynamodb
+            - none
+          enumNames:
+            - "Aurora PostgreSQL"
+            - "Aurora MySQL"
+            - "DynamoDB"
+            - "None"
+          default: none
+          description: Relational (Aurora) or NoSQL (DynamoDB) database
+        orm:
+          title: ORM / Database Library
+          type: string
+          enum:
+            - sqlalchemy
+            - sqlmodel
+            - none
+          enumNames:
+            - "SQLAlchemy 2.0"
+            - "SQLModel (SQLAlchemy + Pydantic)"
+            - "None"
+          default: sqlalchemy
+          description: Object-Relational Mapper (for Aurora databases)
+        cache:
+          title: Cache
+          type: string
+          enum:
+            - elasticache-redis
+            - none
+          enumNames:
+            - "ElastiCache Redis"
+            - "None"
+          default: none
+          description: ElastiCache Redis cluster
+
+    - title: Messaging & Tasks
+      properties:
+        messaging:
+          title: Messaging
+          type: string
+          enum:
+            - sqs
+            - sns-sqs
+            - none
+          enumNames:
+            - "SQS"
+            - "SNS + SQS"
+            - "None"
+          default: none
+          description: AWS messaging service
+        taskQueue:
+          title: Background Tasks
+          type: string
+          enum:
+            - celery
+            - arq
+            - none
+          enumNames:
+            - "Celery"
+            - "ARQ (async)"
+            - "None"
+          default: none
+          description: Async task queue (requires Redis cache)
+
+    - title: AI Integration
+      properties:
+        aiClient:
+          title: AI Client
+          type: string
+          enum:
+            - langchain
+            - openai
+            - anthropic
+            - bedrock
+            - none
+          enumNames:
+            - "LangChain"
+            - "OpenAI SDK"
+            - "Anthropic SDK"
+            - "AWS Bedrock"
+            - "None"
+          default: none
+          description: AI/LLM client library
+
+    - title: Observability
+      properties:
+        metrics:
+          title: Prometheus Metrics
+          type: boolean
+          default: true
+          description: Enable Prometheus metrics endpoint
+
+    - title: Testing
+      properties:
+        testFramework:
+          title: Test Framework
+          type: string
+          enum:
+            - pytest
+          enumNames:
+            - "pytest (Standard)"
+          default: pytest
+
+    - title: Repository
+      required:
+        - repoUrl
+      properties:
+        repoUrl:
+          title: Repository Location
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+
+  steps:
+    - id: fetch-skeleton
+      name: Fetch Skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          owner: ${{ parameters.owner }}
+          description: ${{ parameters.description }}
+          pythonVersion: ${{ parameters.pythonVersion }}
+          packageManager: ${{ parameters.packageManager }}
+          database: ${{ parameters.database }}
+          orm: ${{ parameters.orm }}
+          cache: ${{ parameters.cache }}
+          messaging: ${{ parameters.messaging }}
+          taskQueue: ${{ parameters.taskQueue }}
+          aiClient: ${{ parameters.aiClient }}
+          metrics: ${{ parameters.metrics }}
+
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        allowedHosts:
+          - github.com
+        repoUrl: ${{ parameters.repoUrl }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        protectDefaultBranch: true
+        repoVisibility: private
+
+    - id: register
+      name: Register Component
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in Backstage
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}

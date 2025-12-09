@@ -1,0 +1,8 @@
+# Default owners
+* @${{values.owner}}
+
+# API changes
+/src/api/ @${{values.owner}}
+
+# CI/CD
+/.github/ @platform
