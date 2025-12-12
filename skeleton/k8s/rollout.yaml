@@ -1,0 +1,129 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: ${{values.name}}
+  labels:
+    app.kubernetes.io/name: ${{values.name}}
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: ${{values.owner | replace("group:", "") | replace("team-", "")}}
+    app.kubernetes.io/managed-by: backstage
+    fasti.sh/template: python-service
+  annotations:
+    backstage.io/kubernetes-id: ${{values.name}}
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ${{values.name}}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ${{values.name}}
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: ${{values.owner | replace("group:", "") | replace("team-", "")}}
+      annotations:
+        instrumentation.opentelemetry.io/inject-python: "true"
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: ${{values.owner | replace("group:", "") | replace("team-", "")}}-workload
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ${{values.name}}
+          image: IMAGE_PLACEHOLDER:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: APP_NAME
+              value: "${{values.name}}"
+            - name: ENVIRONMENT
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: OTEL_SERVICE_NAME
+              value: "${{values.name}}"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://grafana-alloy.observability:4318"
+          envFrom:
+            - secretRef:
+                name: ${{values.name}}-secrets
+                optional: true
+            - configMapRef:
+                name: ${{values.name}}-config
+                optional: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: ${{values.name}}
+  strategy:
+    canary:
+      steps:
+        - setWeight: 10
+        - pause: {duration: 1m}
+        - setWeight: 30
+        - pause: {duration: 2m}
+        - setWeight: 60
+        - pause: {duration: 2m}
+      analysis:
+        templates:
+          - templateName: success-rate
+          - templateName: latency-p99
+        startingStep: 1
+        args:
+          - name: service-name
+            value: ${{values.name}}
+          - name: namespace
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+      maxUnavailable: 0
+      maxSurge: 1

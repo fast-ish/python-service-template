@@ -220,6 +220,11 @@ spec:
         defaultBranch: main
         protectDefaultBranch: true
         repoVisibility: private
+        topics:
+          - python
+          - fastapi
+          - argo-rollouts
+          - ${{ parameters.owner }}
 
     - id: register
       name: Register Component
@@ -228,6 +233,36 @@ spec:
         repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
         catalogInfoPath: /catalog-info.yaml
 
+    - id: create-gitops-pr
+      name: Create GitOps Pull Request
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?owner=fast-ish&repo=aws-idp-gitops
+        branchName: add-app-${{ parameters.name }}
+        title: "feat(${{ parameters.name }}): add new python service"
+        description: |
+          ## New Application: ${{ parameters.name }}
+
+          This PR adds a new Python/FastAPI service to the GitOps repository.
+
+          ### Application Details
+          | Property | Value |
+          |----------|-------|
+          | **Name** | ${{ parameters.name }} |
+          | **Owner** | ${{ parameters.owner }} |
+          | **Type** | Python Service (FastAPI) |
+          | **Python** | ${{ parameters.pythonVersion }} |
+          | **Package Manager** | ${{ parameters.packageManager }} |
+
+          ### Deployment Strategy
+          - **Strategy**: Canary
+          - **Steps**: 10% → 30% → 60% → 100%
+
+          ---
+          *Created via Backstage Python Service Template*
+        sourcePath: k8s
+        targetPath: teams/${{ parameters.owner | replace("group:", "") | replace("team-", "") }}/apps/${{ parameters.name }}
+
   output:
     links:
       - title: Repository
@@ -235,3 +270,9 @@ spec:
       - title: Open in Backstage
         icon: catalog
         entityRef: ${{ steps.register.output.entityRef }}
+      - title: GitOps Pull Request
+        icon: github
+        url: ${{ steps['create-gitops-pr'].output.remoteUrl }}
+      - title: ArgoCD Application
+        icon: cloud
+        url: https://argocd.fasti.sh/applications/${{ parameters.owner }}-${{ parameters.name }}

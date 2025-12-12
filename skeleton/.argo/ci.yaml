@@ -1,0 +1,16 @@
+# =============================================================================
+# ARGO CI CONFIGURATION
+# =============================================================================
+language: python
+team: ${{values.owner | replace("group:", "") | replace("team-", "")}}
+
+config:
+  python-version: "${{values.pythonVersion}}"
+  package-manager: "${{values.packageManager}}"
+  skip-tests: false
+  deploy-enabled: true
+  rollout-strategy: canary
+
+  analysis:
+    success-rate-threshold: "0.95"
+    latency-p99-threshold: "500"
